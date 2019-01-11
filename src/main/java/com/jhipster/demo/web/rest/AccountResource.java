@@ -15,9 +15,21 @@ import com.jhipster.demo.web.rest.vm.ManagedUserVM;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContext;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.oauth2.common.OAuth2AccessToken;
+import org.springframework.security.oauth2.provider.authentication.OAuth2AuthenticationDetails;
+import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
 import javax.validation.Valid;
 import java.util.*;
@@ -36,6 +48,9 @@ public class AccountResource {
     private final UserService userService;
 
     private final MailService mailService;
+
+    @Autowired
+    private TokenStore tokenStore;
 
     public AccountResource(UserRepository userRepository, UserService userService, MailService mailService) {
 
@@ -89,8 +104,90 @@ public class AccountResource {
     @GetMapping("/authenticate")
     @Timed
     public String isAuthenticated(HttpServletRequest request) {
+
         log.debug("REST request to check if the current user is authenticated");
-        return request.getRemoteUser();
+
+        // Parse Cookie base on HttpServletRequest
+        Cookie[] cookies = request.getCookies();
+        String access_token = "";
+        if (null != cookies) {
+
+            for (Cookie cookie : cookies) {
+                if ("access_token".equalsIgnoreCase(cookie.getName())) {
+                    access_token = cookie.getValue();
+                    log.info("ACCESS_TOKEN : {} ", access_token);
+                }
+            }
+        }
+
+        // Parse Header Param base on HttpServletRequest
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String key = (String) headerNames.nextElement();
+            String value = request.getHeader(key);
+            log.info("Header Key : {} - Value : {}", key, value);
+        }
+
+        String header = request.getHeader("Authorization");
+        if (StringUtils.isNoneBlank(header)) {
+            String token = StringUtils.substringAfter(header, "Bearer ");
+            log.info("Bearer token : {}" + token);
+
+            if (StringUtils.isEmpty(token)) {
+                log.error("Obtaining user information anomaly");
+            } else {
+
+                OAuth2AccessToken accessToken = tokenStore.readAccessToken(token);
+                Map<String, Object> map = accessToken.getAdditionalInformation();
+                if (null == map) {
+                    log.error("Obtaining user information anomaly");
+                }
+
+                String user_name = (String) map.get("user_name");
+                if (StringUtils.isBlank(user_name)) {
+                    log.error("Obtaining user information anomaly");
+                }
+
+                log.info("user_name : {}", user_name);
+            }
+        }
+
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+        Authentication authentication = securityContext.getAuthentication();
+
+        if (authentication != null && authentication.getDetails() instanceof OAuth2AuthenticationDetails) {
+
+            OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) authentication.getDetails();
+
+            if (null != details) {
+                log.info("TokenValue : {}", details.getTokenValue());
+            }
+
+            String authorization = request.getHeader("Authorization");
+            if (StringUtils.isNoneBlank(authorization)) {
+                log.info("Authorization : {}", authorization);
+            }
+        }
+
+        // judge the current user base on SecurityContext
+        Authentication contextAuthentication = securityContext.getAuthentication();
+        if (null != contextAuthentication && contextAuthentication.isAuthenticated()) {
+            if (contextAuthentication.getPrincipal() instanceof String) {
+
+                log.info("Principal : {} ", contextAuthentication.getPrincipal());
+
+            }
+        }
+
+        Optional<String> login = SecurityUtils.getCurrentUserLogin();
+
+        if (login.isPresent()) {
+            log.info("Login : {} ", login.get());
+            return login.get();
+        } else {
+            return "None";
+        }
+        // return request.getRemoteUser();
     }
 
     /**
@@ -101,7 +198,87 @@ public class AccountResource {
      */
     @GetMapping("/account")
     @Timed
-    public UserDTO getAccount() {
+    public UserDTO getAccount(HttpServletRequest request) {
+
+
+        log.debug("REST request to check if the current user is authenticated");
+
+        // Parse Cookie base on HttpServletRequest
+        Cookie[] cookies = request.getCookies();
+        String access_token = "";
+        if (null != cookies) {
+
+            for (Cookie cookie : cookies) {
+                if ("access_token".equalsIgnoreCase(cookie.getName())) {
+                    access_token = cookie.getValue();
+                    log.info("ACCESS_TOKEN : {} ", access_token);
+                }
+            }
+        }
+
+        // Parse Header Param base on HttpServletRequest
+        Enumeration headerNames = request.getHeaderNames();
+        while (headerNames.hasMoreElements()) {
+            String key = (String) headerNames.nextElement();
+            String value = request.getHeader(key);
+            log.info("Header Key : {} - Value : {}", key, value);
+        }
+
+        String header = request.getHeader("Authorization");
+        String token = StringUtils.substringAfter(header, "Bearer ");
+        System.out.println("Bearer token : " + token);
+        if (StringUtils.isEmpty(token)) {
+            log.error("Obtaining user information anomaly");
+        }
+        OAuth2AccessToken accessToken = tokenStore.readAccessToken(token);
+        Map<String, Object> map = accessToken.getAdditionalInformation();
+        if (null == map) {
+            log.error("Obtaining user information anomaly");
+        }
+
+        String user_name = (String) map.get("user_name");
+        if (StringUtils.isBlank(user_name)) {
+            log.error("Obtaining user information anomaly");
+        }
+
+        log.info("user_name : {}", user_name);
+
+        SecurityContext securityContext = SecurityContextHolder.getContext();
+        Authentication authentication = securityContext.getAuthentication();
+
+        if (authentication != null && authentication.getDetails() instanceof OAuth2AuthenticationDetails) {
+
+            OAuth2AuthenticationDetails details = (OAuth2AuthenticationDetails) authentication.getDetails();
+
+            if (null != details) {
+                log.info("TokenValue : {}", details.getTokenValue());
+            }
+
+            String authorization = request.getHeader("Authorization");
+            if (StringUtils.isNoneBlank(authorization)) {
+                log.info("Authorization : {}", authorization);
+            }
+        }
+
+        // judge the current user base on SecurityContext
+        Authentication contextAuthentication = securityContext.getAuthentication();
+        if (null != contextAuthentication && contextAuthentication.isAuthenticated()) {
+            if (contextAuthentication.getPrincipal() instanceof String) {
+
+                log.info("Principal : {} ", contextAuthentication.getPrincipal());
+
+            }
+        }
+
+        Optional<String> login = SecurityUtils.getCurrentUserLogin();
+
+        if (login.isPresent()) {
+            log.info("Login : {} ", login.get());
+        } else {
+            log.error("None");
+        }
+
+
         return userService.getUserWithAuthorities()
             .map(UserDTO::new)
             .orElseThrow(() -> new InternalServerErrorException("User could not be found"));
